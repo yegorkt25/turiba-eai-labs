@@ -117,7 +117,7 @@ Swagger UI also lets you execute requests directly from the browser ("Try it out
 ### 1. Start the Environment
 
 ```bash
-cd labs/session-3-routing-lab
+cd practice-00-routing
 docker-compose up --build
 ```
 
@@ -275,7 +275,7 @@ docker-compose restart rabbitmq
 
 ```mermaid
 graph LR
-    subgraph "labs/session-3-routing-lab/"
+    subgraph "practice-00-routing/"
         DC[docker-compose.yml]
         RM[README.md]
         

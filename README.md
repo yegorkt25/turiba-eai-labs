@@ -16,8 +16,8 @@ The primary goal of these labs is to provide hands-on experience with:
 
 | Session | Topic | Description | Due Date | Link |
 |:-------:|:------|:------------|:---------|:-----|
-| **1** | **EIP Routing** | Implement Splitter, Content-Based Router, and Aggregator patterns using RabbitMQ and Python. | 17 February 2026 | [Go to Lab](./session-3-routing-lab) |
-| **2** | **Data Integration & Schema Transformation** | Transform different order formats (Web, Mobile, B2B) into a canonical schema using Node-RED. | **February 27th** | [Go to Lab](./practice-01-starter) |
+| **1** | **EIP Routing** | Implement Splitter, Content-Based Router, and Aggregator patterns using RabbitMQ and Python. | 17 February 2026 | [Go to Lab](./practice-00-routing) |
+| **2** | **Data Integration & Schema Transformation** | Transform different order formats (Web, Mobile, B2B) into a canonical schema using Node-RED. | **February 27th** | [Go to Lab](./practice-01-transformation) |
 | **3** | **Event-Driven Messaging with RabbitMQ** | Implement publish-subscribe messaging with retries, DLQ handling, correlation IDs, and idempotent consumers using RabbitMQ and Node.js. | **08.03.2026, 20:00 EET (Europe/Riga, UTC+2)** | [Go to Lab](./practice-02-events) |
 
 
@@ -44,7 +44,7 @@ To successfully run these labs, you will need the following tools installed on y
 
 2.  **Navigate to a specific lab directory:**
     ```bash
-    cd session-3-routing-lab
+    cd practice-00-routing
     ```
 
 3.  **Follow the `README.md` instructions in that specific directory** to start the environment and complete the tasks.
