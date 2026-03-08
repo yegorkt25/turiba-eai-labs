@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
+const axios = require('axios');
 
 const app = express();
 app.use(express.json());
@@ -56,6 +57,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function nowMs() {
+  return Date.now();
+}
+
 function payloadHash(payload) {
   const normalized = JSON.stringify(payload);
   const hash = crypto.createHash('sha256').update(normalized).digest('hex');
@@ -86,6 +91,133 @@ function bootstrapStores() {
   ensureJsonFile(SAGA_STORE_PATH, { sagas: {} });
 }
 
+function upsertIdempotencyRecord(idempotencyKey, record) {
+  const store = readJsonFile(IDEMPOTENCY_STORE_PATH);
+  if (!store.records) {
+    store.records = {};
+  }
+  store.records[idempotencyKey] = {
+    ...record,
+    updatedAt: nowIso()
+  };
+  writeJsonFile(IDEMPOTENCY_STORE_PATH, store);
+}
+
+function upsertSagaRecord(orderId, idempotencyKey, state, steps) {
+  const store = readJsonFile(SAGA_STORE_PATH);
+  if (!store.sagas) {
+    store.sagas = {};
+  }
+  store.sagas[orderId] = {
+    idempotencyKey,
+    state,
+    steps,
+    updatedAt: nowIso()
+  };
+  writeJsonFile(SAGA_STORE_PATH, store);
+}
+
+function isTimeoutError(err) {
+  return err?.code === 'ECONNABORTED' || err?.message?.toLowerCase?.().includes('timeout');
+}
+
+function responseCode(response, fallback = 'downstream_error') {
+  return response?.data?.code || fallback;
+}
+
+function pushTrace(trace, step, status, startedAt, finishedAt, durationMs) {
+  trace.push({
+    step,
+    status,
+    startedAt,
+    finishedAt,
+    durationMs
+  });
+}
+
+async function callStep({ trace, step, url, payload, headers }) {
+  const startedAt = nowIso();
+  const startedMs = nowMs();
+  try {
+    const response = await axios.post(url, payload, {
+      headers,
+      timeout: config.requestTimeoutMs,
+      validateStatus: () => true
+    });
+
+    const finishedAt = nowIso();
+    const durationMs = Math.max(0, nowMs() - startedMs);
+
+    if (response.status >= 200 && response.status < 300) {
+      pushTrace(trace, step, 'success', startedAt, finishedAt, durationMs);
+      return { ok: true, response };
+    }
+
+    const status = response.status === 408 || response.status === 504 ? 'timeout' : 'failed';
+    pushTrace(trace, step, status, startedAt, finishedAt, durationMs);
+    return {
+      ok: false,
+      type: status === 'timeout' ? 'timeout' : 'business',
+      response
+    };
+  } catch (err) {
+    const finishedAt = nowIso();
+    const durationMs = Math.max(0, nowMs() - startedMs);
+    const timeout = isTimeoutError(err);
+    pushTrace(trace, step, timeout ? 'timeout' : 'error', startedAt, finishedAt, durationMs);
+    return {
+      ok: false,
+      type: timeout ? 'timeout' : 'business',
+      error: err
+    };
+  }
+}
+
+async function runCompensation({ trace, orderId, headers, releaseInventory, refundPayment }) {
+  if (releaseInventory) {
+    const releaseResult = await callStep({
+      trace,
+      step: 'inventory_release',
+      url: `${config.inventoryUrl}/inventory/release`,
+      payload: { orderId },
+      headers
+    });
+    if (!releaseResult.ok) {
+      return { ok: false, failedStep: 'inventory_release' };
+    }
+  }
+
+  if (refundPayment) {
+    const refundResult = await callStep({
+      trace,
+      step: 'payment_refund',
+      url: `${config.paymentUrl}/payment/refund`,
+      payload: { orderId },
+      headers
+    });
+    if (!refundResult.ok) {
+      return { ok: false, failedStep: 'payment_refund' };
+    }
+  }
+
+  return { ok: true };
+}
+
+function checkoutResponse(orderId, status, trace, code, message) {
+  const response = {
+    orderId,
+    status,
+    trace
+  };
+  if (code) {
+    response.code = code;
+  }
+  if (message) {
+    response.message = message;
+  }
+  return response;
+}
+
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
 });
@@ -100,7 +232,7 @@ app.get('/debug/trace/:orderId', (req, res) => {
   res.status(200).json(saga);
 });
 
-app.post('/checkout', (req, res) => {
+app.post('/checkout', async (req, res) => {
   const idempotencyKey = req.header('Idempotency-Key');
   if (!idempotencyKey) {
     res.status(400).json({
@@ -135,68 +267,205 @@ app.post('/checkout', (req, res) => {
       return;
     }
 
-    // Starter behavior for in-progress/previous same-key requests is intentionally minimal.
-    // Students must implement full replay/conflict strategy and document it in README.
-    res.status(409).json({
-      code: 'idempotency_conflict',
-      message: 'Starter scaffold does not implement duplicate replay handling yet'
-    });
+    if (existing.state === 'in_progress') {
+      res.status(409).json({
+        code: 'idempotency_conflict',
+        message: 'An operation with this Idempotency-Key is already in progress'
+      });
+      return;
+    }
+
+    res.status(existing.httpStatus || 200).json(existing.response || {});
     return;
   }
 
   const orderId = req.body.orderId;
-  idempotencyStore.records[idempotencyKey] = {
+  upsertIdempotencyRecord(idempotencyKey, {
     requestHash,
     state: 'in_progress',
     httpStatus: 202,
     response: {
       orderId,
       status: 'in_progress'
-    },
-    updatedAt: nowIso()
-  };
-  writeJsonFile(IDEMPOTENCY_STORE_PATH, idempotencyStore);
+    }
+  });
 
-  // --------------------------------------------------------------------------
-  // TODO (student): Implement full orchestration flow:
-  //   1) payment authorize
-  //   2) inventory reserve
-  //   3) shipping create
-  //   4) notification send
-  // with strict sequencing, trace recording, timeout handling, compensation,
-  // idempotent replay policy, and restart-safe persistence updates.
-  // --------------------------------------------------------------------------
-
-  const scaffoldResponse = {
-    orderId,
-    status: 'failed',
-    code: 'not_implemented',
-    message: 'Implement orchestration logic in orchestrator/server.js',
-    trace: []
+  const trace = [];
+  const callHeaders = {
+    'x-correlation-id': idempotencyKey,
+    'x-order-id': orderId
   };
 
-  const sagaStore = readJsonFile(SAGA_STORE_PATH);
-  if (!sagaStore.sagas) {
-    sagaStore.sagas = {};
+  const success = {
+    payment: false,
+    inventory: false,
+    shipping: false
+  };
+
+  function finalize(httpStatus, state, responseBody) {
+    upsertSagaRecord(orderId, idempotencyKey, state, trace);
+    upsertIdempotencyRecord(idempotencyKey, {
+      requestHash,
+      state,
+      httpStatus,
+      response: responseBody
+    });
+    res.status(httpStatus).json(responseBody);
   }
-  sagaStore.sagas[orderId] = {
-    idempotencyKey,
-    state: 'failed',
-    steps: [],
-    updatedAt: nowIso()
-  };
-  writeJsonFile(SAGA_STORE_PATH, sagaStore);
 
-  idempotencyStore.records[idempotencyKey] = {
-    requestHash,
-    state: 'failed',
-    httpStatus: 422,
-    response: scaffoldResponse,
-    updatedAt: nowIso()
-  };
-  writeJsonFile(IDEMPOTENCY_STORE_PATH, idempotencyStore);
+  const paymentResult = await callStep({
+    trace,
+    step: 'payment',
+    url: `${config.paymentUrl}/payment/authorize`,
+    payload: {
+      orderId,
+      amount: req.body.amount
+    },
+    headers: callHeaders
+  });
 
-  res.status(422).json(scaffoldResponse);
+  if (!paymentResult.ok) {
+    if (paymentResult.type === 'timeout') {
+      finalize(504, 'failed', checkoutResponse(orderId, 'failed', trace, 'timeout'));
+      return;
+    }
+    finalize(
+      422,
+      'failed',
+      checkoutResponse(orderId, 'failed', trace, responseCode(paymentResult.response, 'payment_failed'))
+    );
+    return;
+  }
+  success.payment = true;
+
+  const inventoryResult = await callStep({
+    trace,
+    step: 'inventory',
+    url: `${config.inventoryUrl}/inventory/reserve`,
+    payload: {
+      orderId,
+      items: req.body.items
+    },
+    headers: callHeaders
+  });
+
+  if (!inventoryResult.ok) {
+    const compensation = await runCompensation({
+      trace,
+      orderId,
+      headers: callHeaders,
+      releaseInventory: false,
+      refundPayment: success.payment
+    });
+
+    if (!compensation.ok) {
+      finalize(
+        422,
+        'failed',
+        checkoutResponse(orderId, 'failed', trace, 'compensation_failed', `Compensation step failed: ${compensation.failedStep}`)
+      );
+      return;
+    }
+
+    if (inventoryResult.type === 'timeout') {
+      finalize(504, 'compensated', checkoutResponse(orderId, 'compensated', trace, 'timeout'));
+      return;
+    }
+
+    finalize(
+      422,
+      'compensated',
+      checkoutResponse(orderId, 'compensated', trace, responseCode(inventoryResult.response, 'inventory_failed'))
+    );
+    return;
+  }
+  success.inventory = true;
+
+  const shippingResult = await callStep({
+    trace,
+    step: 'shipping',
+    url: `${config.shippingUrl}/shipping/create`,
+    payload: {
+      orderId
+    },
+    headers: callHeaders
+  });
+
+  if (!shippingResult.ok) {
+    const compensation = await runCompensation({
+      trace,
+      orderId,
+      headers: callHeaders,
+      releaseInventory: success.inventory,
+      refundPayment: success.payment
+    });
+
+    if (!compensation.ok) {
+      finalize(
+        422,
+        'failed',
+        checkoutResponse(orderId, 'failed', trace, 'compensation_failed', `Compensation step failed: ${compensation.failedStep}`)
+      );
+      return;
+    }
+
+    if (shippingResult.type === 'timeout') {
+      finalize(504, 'compensated', checkoutResponse(orderId, 'compensated', trace, 'timeout'));
+      return;
+    }
+
+    finalize(
+      422,
+      'compensated',
+      checkoutResponse(orderId, 'compensated', trace, responseCode(shippingResult.response, 'shipping_failed'))
+    );
+    return;
+  }
+  success.shipping = true;
+
+  const notificationResult = await callStep({
+    trace,
+    step: 'notification',
+    url: `${config.notificationUrl}/notification/send`,
+    payload: {
+      orderId,
+      recipient: req.body.recipient
+    },
+    headers: callHeaders
+  });
+
+  if (!notificationResult.ok) {
+    const compensation = await runCompensation({
+      trace,
+      orderId,
+      headers: callHeaders,
+      releaseInventory: success.inventory,
+      refundPayment: success.payment
+    });
+
+    if (!compensation.ok) {
+      finalize(
+        422,
+        'failed',
+        checkoutResponse(orderId, 'failed', trace, 'compensation_failed', `Compensation step failed: ${compensation.failedStep}`)
+      );
+      return;
+    }
+
+    if (notificationResult.type === 'timeout') {
+      finalize(504, 'compensated', checkoutResponse(orderId, 'compensated', trace, 'timeout'));
+      return;
+    }
+
+    finalize(
+      422,
+      'compensated',
+      checkoutResponse(orderId, 'compensated', trace, responseCode(notificationResult.response, 'notification_failed'))
+    );
+    return;
+  }
+
+  finalize(200, 'completed', checkoutResponse(orderId, 'completed', trace));
 });
 
 bootstrapStores();
