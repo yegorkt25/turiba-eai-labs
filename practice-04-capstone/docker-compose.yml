@@ -32,9 +32,11 @@ services:
       PAYMENT_URL: http://payment-service:3002
       INVENTORY_URL: http://inventory-service:3003
       NOTIFICATION_URL: http://notification-service:3004
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
     networks:
       - eai-capstone-network
     depends_on:
+      - rabbitmq
       - order-service
       - payment-service
       - inventory-service
@@ -70,8 +72,15 @@ services:
       PORT: 3002
       # never | always | random
       PAYMENT_FAIL_MODE: never
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      PAYMENT_COMMAND_QUEUE: payment.commands
+      PAYMENT_REPLY_QUEUE: payment.replies
+      PAYMENT_DLX: payment.dlx
+      PAYMENT_DLQ: payment.dlq
     networks:
       - eai-capstone-network
+    depends_on:
+      - rabbitmq
 
   # ── Inventory Service ────────────────────────────────────────────────
   # Handles stock reservation and release.
@@ -105,15 +114,18 @@ services:
   # ── RabbitMQ (Optional — Bonus) ──────────────────────────────────────
   # Uncomment this service if you choose to use RabbitMQ in your integration.
   # Management UI: http://localhost:${RABBITMQ_MGMT_HOST_PORT:-15672}  (guest/guest)
-  #
-  # rabbitmq:
-  #   image: rabbitmq:3-management
-  #   ports:
-  #     - "${RABBITMQ_AMQP_HOST_PORT:-5672}:5672"
-  #     - "${RABBITMQ_MGMT_HOST_PORT:-15672}:15672"
-  #   networks:
-  #     - eai-capstone-network
+  
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "${RABBITMQ_AMQP_HOST_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_HOST_PORT:-15672}:15672"
+    networks:
+      - eai-capstone-network
 
 networks:
   eai-capstone-network:
     driver: bridge
+
+
+

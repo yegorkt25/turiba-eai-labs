@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp .env.example .env)",
+      "Bash(docker compose:*)",
+      "Bash(curl -s http://localhost:1880/health)",
+      "Bash(curl -s http://localhost:3001/health)",
+      "Bash(curl -s http://localhost:3002/health)",
+      "Bash(curl -s http://localhost:3003/health)",
+      "Bash(curl -s http://localhost:3004/health)",
+      "Bash(curl -s http://localhost:2880/health)",
+      "Bash(curl -s http://localhost:4001/health)",
+      "Bash(curl -s http://localhost:4002/health)",
+      "Bash(curl -s http://localhost:4003/health)",
+      "Bash(curl -s http://localhost:4004/health)",
+      "Bash(curl -s -X POST http://localhost:4002/admin/reset)",
+      "Bash(curl -s -X POST http://localhost:4003/admin/reset)",
+      "Bash(curl -s -X POST http://localhost:4004/admin/reset)",
+      "Bash(curl -s -X POST http://localhost:2880/order -H \"Content-Type: application/json\" -d @/d/tmp/turiba-eai-labs/practice-04-capstone/test-data/web-order.json)"
+    ]
+  }
+}
