@@ -2,7 +2,7 @@
 
 **Course:** Enterprise Application Integration (EAI)
 **Type:** Individual capstone project
-**Deadline:** 25.03.2026
+**Deadline:** 10.04.2026
 **Weight:** Final assessment — most important deliverable of the course
 
 ---
