@@ -1,273 +1,923 @@
 [
   {
-    "id": "tab-example",
+    "id": "tab_example_x",
     "type": "tab",
     "label": "Example",
-    "disabled": false,
-    "info": "Hello-world reference flow. You can delete this tab when you are done."
+    "disabled": true,
+    "info": "Disabled"
   },
   {
-    "id": "example-http-in",
-    "type": "http in",
-    "z": "tab-example",
-    "name": "GET /hello",
-    "url": "/hello",
-    "method": "get",
-    "upload": false,
-    "swaggerDoc": "",
-    "x": 140,
-    "y": 80,
-    "wires": [["example-fn"]]
-  },
-  {
-    "id": "example-fn",
-    "type": "function",
-    "z": "tab-example",
-    "name": "Say hello",
-    "func": "msg.payload = { message: 'Hello from Node-RED!' };\nreturn msg;",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 320,
-    "y": 80,
-    "wires": [["example-http-out"]]
-  },
-  {
-    "id": "example-http-out",
-    "type": "http response",
-    "z": "tab-example",
-    "name": "HTTP Response",
-    "statusCode": "200",
-    "headers": { "content-type": "application/json" },
-    "x": 520,
-    "y": 80,
-    "wires": []
-  },
-  {
-    "id": "tab-orchestration",
-    "type": "tab",
-    "label": "Orchestration",
-    "disabled": false,
-    "info": "Main business process flow.\nBuild the happy path here: order intake → routing → payment → inventory → notification → response.\nAlso wire in the error paths that lead to the Error Handling tab."
-  },
-  {
-    "id": "orch-intake",
-    "type": "http in",
-    "z": "tab-orchestration",
-    "name": "TODO: Define your entry point\n(e.g. POST /order or POST /checkout)",
-    "url": "/order",
-    "method": "post",
-    "upload": false,
-    "swaggerDoc": "",
-    "x": 160,
-    "y": 80,
-    "wires": [["orch-router"]]
-  },
-  {
-    "id": "orch-router",
-    "type": "function",
-    "z": "tab-orchestration",
-    "name": "TODO: Content-Based Router\nRoute by orderType (standard / express / b2b)\nUse a switch node or routing logic here.\nDo NOT implement all logic in a single function node.",
-    "func": "// TODO: implement Content-Based Router\n// Read msg.payload.orderType and route accordingly\n// Consider using a separate switch node instead of this function node\nnode.error('Content-Based Router not implemented');\nreturn null;",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 420,
-    "y": 80,
-    "wires": [[]]
-  },
-  {
-    "id": "orch-payment",
-    "type": "http request",
-    "z": "tab-orchestration",
-    "name": "TODO: Call Payment Service\nPOST /payment/authorize\nInclude correlationId in header and body",
-    "method": "POST",
-    "ret": "obj",
-    "paytoqs": "ignore",
-    "url": "",
-    "tls": "",
-    "persist": false,
-    "proxy": "",
-    "authType": "",
-    "x": 420,
-    "y": 200,
-    "wires": [[]]
-  },
-  {
-    "id": "orch-inventory",
-    "type": "http request",
-    "z": "tab-orchestration",
-    "name": "TODO: Call Inventory Service\nPOST /inventory/reserve\nOnly call if payment succeeded",
-    "method": "POST",
-    "ret": "obj",
-    "paytoqs": "ignore",
-    "url": "",
-    "tls": "",
-    "persist": false,
-    "proxy": "",
-    "authType": "",
-    "x": 420,
-    "y": 320,
-    "wires": [[]]
-  },
-  {
-    "id": "orch-notification",
-    "type": "http request",
-    "z": "tab-orchestration",
-    "name": "TODO: Call Notification Service\nPOST /notification/send\nOnly call if inventory reserved",
-    "method": "POST",
-    "ret": "obj",
-    "paytoqs": "ignore",
-    "url": "",
-    "tls": "",
-    "persist": false,
-    "proxy": "",
-    "authType": "",
-    "x": 420,
-    "y": 440,
-    "wires": [[]]
-  },
-  {
-    "id": "orch-response",
-    "type": "http response",
-    "z": "tab-orchestration",
-    "name": "TODO: Return orchestration result\nInclude { orderId, correlationId, status, trace: [...] }",
-    "statusCode": "",
-    "headers": { "content-type": "application/json" },
-    "x": 700,
-    "y": 440,
-    "wires": []
-  },
-  {
-    "id": "tab-error-handling",
-    "type": "tab",
-    "label": "Error Handling",
-    "disabled": false,
-    "info": "Compensation and error flows.\nWire these nodes into the Orchestration tab when a step fails.\nCompensation must run in REVERSE ORDER of the steps that succeeded."
-  },
-  {
-    "id": "eh-release-inventory",
-    "type": "function",
-    "z": "tab-error-handling",
-    "name": "TODO: Compensation Step 1\nRelease Inventory\nPOST /inventory/release\nRun this FIRST if shipping/notification failed after inventory reserved",
-    "func": "// TODO: call inventory-service POST /inventory/release\n// Include orderId, correlationId, reservationId in the request body\n// After successful release, pass to Compensation Step 2 (refund)\nnode.error('Inventory release not implemented');\nreturn null;",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 220,
-    "y": 120,
-    "wires": [[]]
-  },
-  {
-    "id": "eh-refund-payment",
-    "type": "function",
-    "z": "tab-error-handling",
-    "name": "TODO: Compensation Step 2\nRefund Payment\nPOST /payment/refund\nRun this SECOND (after inventory released, or if inventory failed)",
-    "func": "// TODO: call payment-service POST /payment/refund\n// Include orderId, correlationId, transactionId in the request body\n// After successful refund, build the 'compensated' response\nnode.error('Payment refund not implemented');\nreturn null;",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 220,
-    "y": 240,
-    "wires": [[]]
-  },
-  {
-    "id": "eh-dlq",
-    "type": "function",
-    "z": "tab-error-handling",
-    "name": "TODO: Dead Letter Channel\nHandle unrecoverable failures\n(e.g. compensation itself fails, or max retries exceeded)",
-    "func": "// TODO: implement Dead Letter Channel handling\n// Options:\n//   - Log the failed message to a file\n//   - Publish to a RabbitMQ DLQ (bonus)\n//   - Store in a dead-letter in-memory queue with admin GET endpoint\n// The message here is permanently unprocessable — log it for manual review\nnode.warn('Dead letter: ' + JSON.stringify(msg.payload));\nreturn msg;",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 220,
-    "y": 360,
-    "wires": [[]]
-  },
-  {
-    "id": "eh-debug",
-    "type": "debug",
-    "z": "tab-error-handling",
-    "name": "TODO: Log dead letter for admin inspection",
-    "active": true,
-    "tosidebar": true,
-    "console": true,
-    "tostatus": false,
-    "complete": "payload",
-    "targetType": "msg",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 500,
-    "y": 360,
-    "wires": []
-  },
-  {
-    "id": "tab-admin",
+    "id": "tab_adm1",
     "type": "tab",
     "label": "Admin",
     "disabled": false,
-    "info": "Health check and debugging endpoints.\nThe /health endpoint is already wired and working.\nAdd a /trace/:orderId endpoint to help debug your orchestration flow."
+    "info": "Health+trace"
   },
   {
-    "id": "admin-health-in",
+    "id": "admHin",
     "type": "http in",
-    "z": "tab-admin",
-    "name": "GET /health",
+    "z": "tab_adm1",
+    "name": "/health",
     "url": "/health",
     "method": "get",
     "upload": false,
     "swaggerDoc": "",
-    "x": 140,
+    "x": 80,
     "y": 80,
-    "wires": [["admin-health-fn"]]
+    "wires": [
+      [
+        "admHfn"
+      ]
+    ]
   },
   {
-    "id": "admin-health-fn",
+    "id": "admHfn",
     "type": "function",
-    "z": "tab-admin",
-    "name": "Health response",
-    "func": "msg.payload = { status: 'ok', service: 'node-red' };\nmsg.statusCode = 200;\nreturn msg;",
+    "z": "tab_adm1",
+    "name": "health",
+    "func": "msg.statusCode=200; msg.payload={ status:'ok', service:'node-red' }; return msg;",
     "outputs": 1,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 320,
+    "x": 280,
     "y": 80,
-    "wires": [["admin-health-out"]]
+    "wires": [
+      [
+        "admHou"
+      ]
+    ]
   },
   {
-    "id": "admin-health-out",
+    "id": "admHou",
     "type": "http response",
-    "z": "tab-admin",
-    "name": "HTTP Response",
-    "statusCode": "200",
-    "headers": { "content-type": "application/json" },
-    "x": 520,
+    "z": "tab_adm1",
+    "name": "respond",
+    "statusCode": "",
+    "headers": {
+      "content-type": "application/json"
+    },
+    "x": 500,
     "y": 80,
     "wires": []
   },
   {
-    "id": "admin-trace-in",
+    "id": "admTin",
     "type": "http in",
-    "z": "tab-admin",
-    "name": "TODO: GET /trace/:orderId\nReturn saga trace for debugging",
+    "z": "tab_adm1",
+    "name": "/trace/:orderId",
     "url": "/trace/:orderId",
     "method": "get",
     "upload": false,
     "swaggerDoc": "",
-    "x": 160,
+    "x": 80,
     "y": 200,
-    "wires": [[]]
+    "wires": [
+      [
+        "admTfn"
+      ]
+    ]
+  },
+  {
+    "id": "admTfn",
+    "type": "function",
+    "z": "tab_adm1",
+    "name": "get trace",
+    "func": "const id = msg.req.params.orderId; const e = id ? global.get(\"traceOrder_\" + id) : null; msg.statusCode = e?200:404; msg.payload = e || { error: \"not found\" }; return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 300,
+    "y": 200,
+    "wires": [
+      [
+        "admTou"
+      ]
+    ]
+  },
+  {
+    "id": "admTou",
+    "type": "http response",
+    "z": "tab_adm1",
+    "name": "respond",
+    "statusCode": "",
+    "headers": {
+      "content-type": "application/json"
+    },
+    "x": 500,
+    "y": 200,
+    "wires": []
+  },
+  {
+    "id": "tab_orch1",
+    "type": "tab",
+    "label": "Orchestration",
+    "disabled": false,
+    "info": "POST /orchestrate"
+  },
+  {
+    "id": "in_orch",
+    "type": "http in",
+    "z": "tab_orch1",
+    "name": "/orchestrate",
+    "url": "/orchestrate",
+    "method": "post",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 80,
+    "y": 200,
+    "wires": [
+      [
+        "f_init"
+      ]
+    ]
+  },
+  {
+    "id": "f_init",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "Init+Correlation",
+    "func": "const p = msg.payload;\nif (!p || !p.orderId || !p.correlationId || !p.order) { return [ null, msg ]; }\nconst o = p.order;\nmsg.saga = { orderId: p.orderId, correlationId: p.correlationId, order: o, trace: [] };\nmsg.orderType = o.orderType || \"standard\";\nconst key = \"traceOrder_\" + p.orderId;\ntry { global.set(key, { orderId: p.orderId, correlationId: p.correlationId, trace: [], updatedAt: new Date().toISOString() }); } catch (e) {}\nreturn [ msg, null ];",
+    "outputs": 2,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 220,
+    "y": 200,
+    "wires": [
+      [
+        "sw_cbr"
+      ],
+      [
+        "f_badP"
+      ]
+    ]
+  },
+  {
+    "id": "f_badP",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "400 bad payload",
+    "func": "msg.statusCode=400; msg.payload={error:\"Invalid orchestration body\",need:\"orderId,correlationId,order\"}; return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 180,
+    "y": 80,
+    "wires": [
+      [
+        "hresp_main"
+      ]
+    ]
+  },
+  {
+    "id": "sw_cbr",
+    "type": "switch",
+    "z": "tab_orch1",
+    "name": "ContentBasedRouter",
+    "property": "orderType",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "standard",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "express",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "b2b",
+        "vt": "str"
+      },
+      {
+        "t": "else"
+      }
+    ],
+    "checkall": "false",
+    "repair": false,
+    "priorproperty": null,
+    "outputs": 4,
+    "x": 400,
+    "y": 200,
+    "wires": [
+      [
+        "tr_std"
+      ],
+      [
+        "tr_ex"
+      ],
+      [
+        "tr_b2"
+      ],
+      [
+        "tr_err"
+      ]
+    ]
+  },
+  {
+    "id": "tr_std",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "MessageTranslator: standard",
+    "func": "msg.saga.hint = \"retail\"; msg.saga.channel = \"web\"; return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 600,
+    "y": 80,
+    "wires": [
+      [
+        "f_line"
+      ]
+    ]
+  },
+  {
+    "id": "tr_ex",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "MessageTranslator: express",
+    "func": "msg.saga.hint = \"mobile-express\"; msg.saga.channel = \"app\"; return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 600,
+    "y": 200,
+    "wires": [
+      [
+        "f_line"
+      ]
+    ]
+  },
+  {
+    "id": "tr_b2",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "MessageTranslator: b2b",
+    "func": "msg.saga.hint = \"b2b\"; msg.saga.channel = \"procurement\"; return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 600,
+    "y": 320,
+    "wires": [
+      [
+        "f_line"
+      ]
+    ]
+  },
+  {
+    "id": "tr_err",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "Unknown type",
+    "func": "msg.statusCode=400; msg.payload={error:\"Unknown orderType\"}; return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 600,
+    "y": 440,
+    "wires": [
+      [
+        "hresp_main"
+      ]
+    ]
+  },
+  {
+    "id": "f_line",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "Line totals",
+    "func": "const s = msg.saga; const o = s.order; let total=0;\nfor (const it of o.items) { total += (Number(it.unitPrice)*Number(it.quantity)) * (1+(Number(it.taxRate)||0)); }\ns.amount = Math.round(total*100)/100; s.currency = o.currency || \"EUR\"; return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 800,
+    "y": 200,
+    "wires": [
+      [
+        "f_prepP"
+      ]
+    ]
+  },
+  {
+    "id": "eaiAmqpSrv",
+    "type": "amqp-server",
+    "name": "rabbit@docker",
+    "host": "guest:guest@rabbitmq",
+    "port": "5672",
+    "vhost": "",
+    "keepalive": 30,
+    "usetls": false,
+    "verifyservercert": true,
+    "useca": false,
+    "ca": "",
+    "usetopology": false,
+    "topology": "{\n\t\"exchanges\": [],\n\t\"queues\": [],\n\t\"bindings\": []\n}"
+  },
+  {
+    "id": "f_prepP",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "Prep payment → AMQP",
+    "func": "const s=msg.saga; s.payT0=Date.now();\ntry { global.set(\"sagaAmqpPay_\"+s.correlationId, JSON.parse(JSON.stringify(s))); } catch (e) {}\ntry { if (msg.req && msg.res) { global.set(\"httpOrchCtx_\"+s.correlationId, { req: msg.req, res: msg.res }); } } catch (e) {}\nmsg.payload={orderId:s.orderId,correlationId:s.correlationId,amount:s.amount,currency:s.currency};\nmsg.options={correlationId: s.correlationId, contentType: \"application/json\" };\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 960,
+    "y": 200,
+    "wires": [
+      [
+        "aout_pay"
+      ]
+    ]
+  },
+  {
+    "id": "aout_pay",
+    "type": "amqp out",
+    "z": "tab_orch1",
+    "name": "payment request q",
+    "iotype": "4",
+    "ioname": "eai.payment.request",
+    "routingkey": "",
+    "server": "eaiAmqpSrv",
+    "x": 1120,
+    "y": 200,
+    "wires": []
+  },
+  {
+    "id": "ain_res",
+    "type": "amqp in",
+    "z": "tab_orch1",
+    "name": "payment response q",
+    "iotype": "4",
+    "ioname": "eai.payment.response",
+    "topic": "",
+    "server": "eaiAmqpSrv",
+    "x": 1120,
+    "y": 100,
+    "wires": [
+      [
+        "f_mrgPay"
+      ]
+    ]
+  },
+  {
+    "id": "f_mrgPay",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "Merge AMQP reply+SAGA",
+    "func": "const raw=msg.payload;\nlet p=raw;\nif (typeof raw===\"string\") { try { p=JSON.parse(raw);} catch (e) { p=null; }}\nif (!p||typeof p!==\"object\") { msg.saga=msg.saga||{trace:[]}; msg.statusCode=500; msg.payload={ status:\"rejected\" }; return msg;}\nconst cid=p.correlationId; let s=null; try { s=global.get(\"sagaAmqpPay_\"+(cid||\"\")); } catch (e) {}\nif (s&&typeof s===\"string\") { try { s=JSON.parse(s);} catch (e) { s=null; }}\nif (s) { msg.saga=s; try { global.set(\"sagaAmqpPay_\"+(cid||\"\"), undefined);} catch (e) {} } else { msg.saga=msg.saga||{correlationId:cid, trace:[]};}\nlet ctx; try { ctx=global.get(\"httpOrchCtx_\"+(cid||\"\"));} catch (e) {}\nif (ctx) { msg.req=ctx.req; msg.res=ctx.res; try { global.set(\"httpOrchCtx_\"+(cid||\"\"), undefined);} catch (e) {} }\nmsg.statusCode= (p.httpStatus!=null) ? p.httpStatus : 200;\nmsg.payload= p.body != null ? p.body : p;\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1240,
+    "y": 100,
+    "wires": [
+      [
+        "f_stpay"
+      ]
+    ]
+  },
+  {
+    "id": "f_stpay",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "After payment (3out)",
+    "func": "const s=msg.saga; const t1=Date.now(); const ms=t1-s.payT0; const p=msg.payload; const st=p&&p.status; const sc=msg.statusCode||0;\ns.trace.push({step:\"payment\",status:(sc===200&&st===\"authorized\")?\"success\":\"failed\",durationMs:ms});\nif (sc===200&&st===\"authorized\"){ s.transactionId=p.transactionId; try{const k=\"traceOrder_\"+s.orderId; const e=global.get(k)||{}; e.trace=s.trace; e.updatedAt=new Date().toISOString(); global.set(k,e);}catch(e){} return [msg,null,null]; }\nif (sc===422){ s.status=\"failed\"; try{const k=\"traceOrder_\"+s.orderId; const e=global.get(k)||{}; e.trace=s.trace; e.updatedAt=new Date().toISOString(); global.set(k,e);}catch(e){} return [null,msg,null]; }\nreturn [null,null,msg];",
+    "outputs": 3,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1260,
+    "y": 200,
+    "wires": [
+      [
+        "f_prepI"
+      ],
+      [
+        "f_cinvf"
+      ],
+      [
+        "f_dl1"
+      ]
+    ]
+  },
+  {
+    "id": "f_cinvf",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "Response failed (payment)",
+    "func": "const s=msg.saga; msg.statusCode=200; msg.payload={orderId:s.orderId,correlationId:s.correlationId,status:\"failed\",trace:s.trace}; return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1420,
+    "y": 80,
+    "wires": [
+      [
+        "hresp_main"
+      ]
+    ]
+  },
+  {
+    "id": "f_dl1",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "DLC: payment 5xx",
+    "func": "const s=msg.saga||{trace:[]}; s.trace=s.trace||[]; s.trace.push({step:\"dead-letter\",status:\"failed\"}); try{ if(s.orderId) global.set(\"dlq:\"+s.orderId, {at:new Date().toISOString(), reason:\"payment_5xx\", trace:s.trace});}catch(e){} msg.statusCode=500; msg.payload={orderId:s.orderId,correlationId:s.correlationId,status:\"error\",deadLetter:true,trace:s.trace,reason:\"payment_unrecoverable\"}; return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1420,
+    "y": 20,
+    "wires": [
+      [
+        "hresp_main"
+      ]
+    ]
+  },
+  {
+    "id": "f_prepI",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "prep inventory",
+    "func": "const s=msg.saga; s.invT0=Date.now();\nlet b=\"http://inventory-service:3003\";\nif (b.charAt(b.length-1)===\"/\") b=b.slice(0,-1);\nmsg.url=b+\"/inventory/reserve\";\nmsg.method=\"POST\";\nmsg.headers={\"X-Correlation-Id\":s.correlationId,\"Content-Type\":\"application/json\"};\nconst items=(s.order.items||[]).map(it=>({productId:it.productId,quantity:it.quantity}));\nmsg.payload={orderId:s.orderId,correlationId:s.correlationId,items};\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1440,
+    "y": 200,
+    "wires": [
+      [
+        "h_inv"
+      ]
+    ]
+  },
+  {
+    "id": "h_inv",
+    "type": "http request",
+    "z": "tab_orch1",
+    "name": "HTTP inv",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "auth": "",
+    "insecAuth": false,
+    "proxy": "",
+    "authType": "",
+    "x": 1600,
+    "y": 200,
+    "wires": [
+      [
+        "f_ainv"
+      ]
+    ]
+  },
+  {
+    "id": "f_ainv",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "After inv (3out)",
+    "func": "const s=msg.saga; const t1=Date.now(); const ms=t1-s.invT0; const p=msg.payload; const st=p&&p.status; const sc=msg.statusCode||0;\ns.trace.push({step:\"inventory\",status:(sc===200&&st===\"reserved\")?\"success\":\"failed\",durationMs:ms});\nif (sc===200&&st===\"reserved\"){ s.reservationId=p.reservationId; try{const k=\"traceOrder_\"+s.orderId; const e=global.get(k)||{}; e.trace=s.trace; e.updatedAt=new Date().toISOString(); global.set(k,e);}catch(e){} return [msg,null,null]; }\nif (sc===422){ try{const k=\"traceOrder_\"+s.orderId; const e=global.get(k)||{}; e.trace=s.trace; e.updatedAt=new Date().toISOString(); global.set(k,e);}catch(e){} return [null,msg,null]; }\nreturn [null,null,msg];",
+    "outputs": 3,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1760,
+    "y": 200,
+    "wires": [
+      [
+        "f_p_not"
+      ],
+      [
+        "f_p_ref1"
+      ],
+      [
+        "f_dli2"
+      ]
+    ]
+  },
+  {
+    "id": "f_dli2",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "DLC inv 5xx",
+    "func": "const s=msg.saga||{trace:[]}; s.trace=s.trace||[]; s.trace.push({step:\"dead-letter\",status:\"failed\"}); try{ if(s.orderId) global.set(\"dlq:\"+s.orderId, {at:new Date().toISOString(), reason:\"inventory_5xx\", trace:s.trace});}catch(e){} msg.statusCode=500; msg.payload={orderId:s.orderId,correlationId:s.correlationId,status:\"error\",deadLetter:true,trace:s.trace,reason:\"inventory_5xx\"}; return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1920,
+    "y": 80,
+    "wires": [
+      [
+        "hresp_main"
+      ]
+    ]
+  },
+  {
+    "id": "f_p_ref1",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "refund (inv 422)",
+    "func": "const s=msg.saga; s.refT0=Date.now();\nlet b=\"http://payment-service:3002\";\nif (b.charAt(b.length-1)===\"/\") b=b.slice(0,-1);\nmsg.url=b+\"/payment/refund\";\nmsg.method=\"POST\";\nmsg.headers={\"X-Correlation-Id\":s.correlationId,\"Content-Type\":\"application/json\"};\nmsg.payload={orderId:s.orderId,correlationId:s.correlationId,transactionId:s.transactionId||\"\"};\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1920,
+    "y": 280,
+    "wires": [
+      [
+        "h_r1"
+      ]
+    ]
+  },
+  {
+    "id": "h_r1",
+    "type": "http request",
+    "z": "tab_orch1",
+    "name": "HTTP refund",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "auth": "",
+    "insecAuth": false,
+    "proxy": "",
+    "authType": "",
+    "x": 2060,
+    "y": 280,
+    "wires": [
+      [
+        "f_a_ref1"
+      ]
+    ]
+  },
+  {
+    "id": "f_a_ref1",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "After refund inv-fail",
+    "func": "const s=msg.saga; const sc=msg.statusCode||0; s.trace.push({step:\"compensation:payment-refund\",status:sc===200?\"success\":\"failed\"});\ns.status=sc===200?\"compensated\":\"error\";\nmsg.statusCode=sc===200?200:500;\nmsg.payload={orderId:s.orderId,correlationId:s.correlationId,status:sc===200?\"compensated\":\"error\",deadLetter:sc!==200,trace:s.trace};\ntry{ const k=\"traceOrder_\"+s.orderId; const e=global.get(k)||{}; e.trace=s.trace; e.updatedAt=new Date().toISOString(); global.set(k,e);} catch(e) {}\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2200,
+    "y": 280,
+    "wires": [
+      [
+        "hresp_main"
+      ]
+    ]
+  },
+  {
+    "id": "f_p_not",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "prep notification",
+    "func": "const s=msg.saga; s.notT0=Date.now();\nlet b=\"http://notification-service:3004\";\nif (b.charAt(b.length-1)===\"/\") b=b.slice(0,-1);\nmsg.url=b+\"/notification/send\";\nmsg.method=\"POST\";\nmsg.headers={\"X-Correlation-Id\":s.correlationId,\"Content-Type\":\"application/json\"};\nmsg.payload={orderId:s.orderId,correlationId:s.correlationId,type:\"order\",message:(s.hint||\"\")+\":\"+s.orderId};\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2000,
+    "y": 200,
+    "wires": [
+      [
+        "h_not"
+      ]
+    ]
+  },
+  {
+    "id": "h_not",
+    "type": "http request",
+    "z": "tab_orch1",
+    "name": "HTTP notif",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "auth": "",
+    "insecAuth": false,
+    "proxy": "",
+    "authType": "",
+    "x": 2140,
+    "y": 200,
+    "wires": [
+      [
+        "f_cho_not"
+      ]
+    ]
+  },
+  {
+    "id": "f_cho_not",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "After notif 2out",
+    "func": "const s=msg.saga; const t1=Date.now(); const ms=t1-s.notT0; const sc=msg.statusCode||0;\ns.trace.push({step:\"notification\",status:sc===200?\"success\":\"failed\",durationMs:ms});\nif (sc===200) { s.status=\"completed\"; try{const k=\"traceOrder_\"+s.orderId; const e=global.get(k)||{}; e.trace=s.trace; e.updatedAt=new Date().toISOString(); global.set(k,e);}catch(e){} return [msg,null]; }\ntry{ const k=\"traceOrder_\"+s.orderId; const e=global.get(k)||{}; e.trace=s.trace; e.updatedAt=new Date().toISOString(); global.set(k,e);} catch(e) {}\nreturn [null,msg];",
+    "outputs": 2,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2300,
+    "y": 200,
+    "wires": [
+      [
+        "f_done"
+      ],
+      [
+        "f_p_rel"
+      ]
+    ]
+  },
+  {
+    "id": "f_done",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "completed + fanout copy",
+    "func": "const s=msg.saga; msg.statusCode=200; msg.payload={orderId:s.orderId,correlationId:s.correlationId,status:\"completed\",trace:s.trace};\nconst a={type:\"orderCompleted\",orderId:s.orderId,correlationId:s.correlationId,at:new Date().toISOString()}; return [msg,{ payload: a }];",
+    "outputs": 2,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2480,
+    "y": 120,
+    "wires": [
+      [
+        "hresp_main"
+      ],
+      [
+        "aout_fan"
+      ]
+    ]
+  },
+  {
+    "id": "aout_fan",
+    "type": "amqp out",
+    "z": "tab_orch1",
+    "name": "orderCompleted fanout",
+    "iotype": "1",
+    "ioname": "eai.fanout.orderCompleted",
+    "routingkey": "",
+    "server": "eaiAmqpSrv",
+    "x": 2700,
+    "y": 20,
+    "wires": []
+  },
+  {
+    "id": "tab_rmq1",
+    "type": "tab",
+    "label": "RabbitMQ bonus (fanout)",
+    "disabled": false,
+    "info": "Two queues bound to the same fanout — see Management UI and Node-RED debug (warn)"
+  },
+  {
+    "id": "ain_f1",
+    "type": "amqp in",
+    "z": "tab_rmq1",
+    "name": "fanout c1",
+    "iotype": "4",
+    "ioname": "eai.fanout.c1",
+    "topic": "",
+    "server": "eaiAmqpSrv",
+    "x": 200,
+    "y": 120,
+    "wires": [
+      [
+        "f_flog1"
+      ]
+    ]
+  },
+  {
+    "id": "f_flog1",
+    "type": "function",
+    "z": "tab_rmq1",
+    "name": "log c1 (warn)",
+    "func": "const t=(typeof msg.payload===\"string\")?msg.payload:JSON.stringify(msg.payload||{}); node.warn(\"[fanout consumer c1] \"+t); return null;",
+    "outputs": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 420,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "ain_f2",
+    "type": "amqp in",
+    "z": "tab_rmq1",
+    "name": "fanout c2",
+    "iotype": "4",
+    "ioname": "eai.fanout.c2",
+    "topic": "",
+    "server": "eaiAmqpSrv",
+    "x": 200,
+    "y": 220,
+    "wires": [
+      [
+        "f_flog2"
+      ]
+    ]
+  },
+  {
+    "id": "f_flog2",
+    "type": "function",
+    "z": "tab_rmq1",
+    "name": "log c2 (warn)",
+    "func": "const t=(typeof msg.payload===\"string\")?msg.payload:JSON.stringify(msg.payload||{}); node.warn(\"[fanout consumer c2] \"+t); return null;",
+    "outputs": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 420,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "f_p_rel",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "prep release",
+    "func": "const s=msg.saga; s.relT0=Date.now();\nlet b=\"http://inventory-service:3003\";\nif (b.charAt(b.length-1)===\"/\") b=b.slice(0,-1);\nmsg.url=b+\"/inventory/release\";\nmsg.method=\"POST\";\nmsg.headers={\"X-Correlation-Id\":s.correlationId,\"Content-Type\":\"application/json\"};\nmsg.payload={orderId:s.orderId,correlationId:s.correlationId,reservationId:s.reservationId||\"\"};\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2480,
+    "y": 280,
+    "wires": [
+      [
+        "h_rel"
+      ]
+    ]
+  },
+  {
+    "id": "h_rel",
+    "type": "http request",
+    "z": "tab_orch1",
+    "name": "HTTP release",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "auth": "",
+    "insecAuth": false,
+    "proxy": "",
+    "authType": "",
+    "x": 2620,
+    "y": 280,
+    "wires": [
+      [
+        "f_a_rel"
+      ]
+    ]
+  },
+  {
+    "id": "f_a_rel",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "After release",
+    "func": "const s=msg.saga; const sc=msg.statusCode||0;\ns.trace.push({step:\"compensation:inventory-release\",status:sc===200?\"success\":\"failed\"});\nif (sc!==200) { s.deadLetter = true; }\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2780,
+    "y": 280,
+    "wires": [
+      [
+        "f_ref2split"
+      ]
+    ]
+  },
+  {
+    "id": "f_ref2split",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "refund or DLQ",
+    "func": "const s=msg.saga;\nif (s.deadLetter) { msg.statusCode=500; msg.payload={orderId:s.orderId,correlationId:s.correlationId,status:\"error\",deadLetter:true,trace:s.trace,reason:\"release_failed\"}; return [null,msg]; }\ns.ref2T0=Date.now();\nlet b2=\"http://payment-service:3002\";\nif (b2.charAt(b2.length-1)===\"/\") b2=b2.slice(0,-1);\nmsg.url=b2+\"/payment/refund\";\nmsg.method=\"POST\";\nmsg.headers={\"X-Correlation-Id\":s.correlationId,\"Content-Type\":\"application/json\"};\nmsg.payload={orderId:s.orderId,correlationId:s.correlationId,transactionId:s.transactionId||\"\"};\nreturn [msg,null];",
+    "outputs": 2,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2920,
+    "y": 280,
+    "wires": [
+      [
+        "h_r2"
+      ],
+      [
+        "hresp_main"
+      ]
+    ]
+  },
+  {
+    "id": "h_r2",
+    "type": "http request",
+    "z": "tab_orch1",
+    "name": "HTTP refund2",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "auth": "",
+    "insecAuth": false,
+    "proxy": "",
+    "authType": "",
+    "x": 3080,
+    "y": 300,
+    "wires": [
+      [
+        "f_a2"
+      ]
+    ]
+  },
+  {
+    "id": "f_a2",
+    "type": "function",
+    "z": "tab_orch1",
+    "name": "After notif comp",
+    "func": "const s=msg.saga; const sc=msg.statusCode||0; s.trace.push({step:\"compensation:payment-refund\",status:sc===200?\"success\":\"failed\"});\ns.status= (s.deadLetter||sc!==200) ? \"error\" : \"compensated\";\nmsg.statusCode= (s.deadLetter||sc!==200) ? 500 : 200;\nmsg.payload={orderId:s.orderId,correlationId:s.correlationId,status:s.status===\"compensated\"?\"compensated\":\"error\",deadLetter:msg.statusCode===500,trace:s.trace};\ntry{ const k=\"traceOrder_\"+s.orderId; const e=global.get(k)||{}; e.trace=s.trace; global.set(k,e);} catch(e) {}\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 3260,
+    "y": 300,
+    "wires": [
+      [
+        "hresp_main"
+      ]
+    ]
+  },
+  {
+    "id": "hresp_main",
+    "type": "http response",
+    "z": "tab_orch1",
+    "name": "respond",
+    "statusCode": "",
+    "headers": {
+      "content-type": "application/json"
+    },
+    "x": 3440,
+    "y": 200,
+    "wires": []
   }
 ]

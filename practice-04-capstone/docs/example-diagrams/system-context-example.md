@@ -2,7 +2,7 @@
 
 This file shows the **expected content and structure** of a System Context Diagram — not the answer for the capstone scenario. The example below uses a fictional **Insurance Claims Processing** domain so it does not give away your solution.
 
-Place your own diagrams in the `docs/` folder (or inline them in your README as Mermaid blocks).
+Place your own diagrams in the `docs/` folder — e.g. **Draw.io** (`.drawio` under `docs/diagrams/`, as in this project), PNG/PDF, or Mermaid in README. See the **Accepted Diagram Formats** table below.
 
 ---
 

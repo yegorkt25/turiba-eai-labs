@@ -1,5 +1,3 @@
-version: "3.8"
-
 # ─────────────────────────────────────────────────────────────────────
 # EAI Capstone — Docker Compose
 #
@@ -36,11 +34,16 @@ services:
     networks:
       - eai-capstone-network
     depends_on:
-      - rabbitmq
-      - order-service
-      - payment-service
-      - inventory-service
-      - notification-service
+      rabbitmq:
+        condition: service_healthy
+      order-service:
+        condition: service_started
+      payment-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
 
   # ── Order Service ────────────────────────────────────────────────────
   # Business-domain service for order management.
@@ -70,17 +73,20 @@ services:
       - "${PAYMENT_HOST_PORT:-3002}:3002"
     environment:
       PORT: 3002
-      # never | always | random
-      PAYMENT_FAIL_MODE: never
+      # never | always | random (override: PAYMENT_FAIL_MODE=always docker compose up -d payment-service)
+      PAYMENT_FAIL_MODE: ${PAYMENT_FAIL_MODE:-never}
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
-      PAYMENT_COMMAND_QUEUE: payment.commands
-      PAYMENT_REPLY_QUEUE: payment.replies
-      PAYMENT_DLX: payment.dlx
-      PAYMENT_DLQ: payment.dlq
     networks:
       - eai-capstone-network
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "node", "-e", "require('http').get('http://127.0.0.1:3002/health',(r)=>{r.resume();r.on('end',()=>process.exit(r.statusCode===200?0:1))}).on('error',()=>process.exit(1))" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
 
   # ── Inventory Service ────────────────────────────────────────────────
   # Handles stock reservation and release.
@@ -93,7 +99,7 @@ services:
     environment:
       PORT: 3003
       # never | always | random
-      INVENTORY_FAIL_MODE: never
+      INVENTORY_FAIL_MODE: ${INVENTORY_FAIL_MODE:-never}
     networks:
       - eai-capstone-network
 
@@ -111,17 +117,24 @@ services:
     networks:
       - eai-capstone-network
 
-  # ── RabbitMQ (Optional — Bonus) ──────────────────────────────────────
-  # Uncomment this service if you choose to use RabbitMQ in your integration.
+  # ── RabbitMQ (optional bonus — enabled for this project) ────────────
   # Management UI: http://localhost:${RABBITMQ_MGMT_HOST_PORT:-15672}  (guest/guest)
-  
+  # `docker/rabbitmq/conf.d/` — allow default guest user from other containers.
   rabbitmq:
     image: rabbitmq:3-management
     ports:
       - "${RABBITMQ_AMQP_HOST_PORT:-5672}:5672"
       - "${RABBITMQ_MGMT_HOST_PORT:-15672}:15672"
+    volumes:
+      - ./docker/rabbitmq/conf.d/20-allow-guest-remote.conf:/etc/rabbitmq/conf.d/20-allow-guest-remote.conf:ro
     networks:
       - eai-capstone-network
+    healthcheck:
+      test: [ "CMD-SHELL", "rabbitmq-diagnostics -q ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 8
+      start_period: 25s
 
 networks:
   eai-capstone-network:

@@ -69,9 +69,44 @@ app.get('/health', (req, res) => {
 //   4. On success: return HTTP 200 with { status: 'reserved', reservationId: uuidv4(), correlationId }
 //   5. On failure: return HTTP 422 with { status: 'unavailable', reason: 'Insufficient stock', correlationId }
 // ─────────────────────────────────────────────
+function getCorrelationId(req) {
+  return (
+    (req.body && req.body.correlationId) ||
+    req.headers['x-correlation-id'] ||
+    null
+  );
+}
+
+function shouldRejectReserve() {
+  if (INVENTORY_FAIL_MODE === 'always') return true;
+  if (INVENTORY_FAIL_MODE === 'random' && Math.random() < 0.1) return true;
+  return false;
+}
+
 app.post('/inventory/reserve', (req, res) => {
-  // TODO: implement inventory reservation
-  res.status(501).json({ error: 'Not implemented' });
+  const correlationId = getCorrelationId(req);
+  const orderId = (req.body && req.body.orderId) || null;
+
+  callLog.push({
+    endpoint: '/inventory/reserve',
+    correlationId,
+    orderId,
+    timestamp: new Date().toISOString(),
+  });
+
+  if (shouldRejectReserve()) {
+    return res.status(422).json({
+      status: 'unavailable',
+      reason: 'Insufficient stock',
+      correlationId,
+    });
+  }
+
+  res.status(200).json({
+    status: 'reserved',
+    reservationId: uuidv4(),
+    correlationId,
+  });
 });
 
 // ─────────────────────────────────────────────
@@ -94,8 +129,17 @@ app.post('/inventory/reserve', (req, res) => {
 // Note: For this practice, releases always succeed.
 // ─────────────────────────────────────────────
 app.post('/inventory/release', (req, res) => {
-  // TODO: implement inventory release
-  res.status(501).json({ error: 'Not implemented' });
+  const correlationId = getCorrelationId(req);
+  const orderId = (req.body && req.body.orderId) || null;
+
+  callLog.push({
+    endpoint: '/inventory/release',
+    correlationId,
+    orderId,
+    timestamp: new Date().toISOString(),
+  });
+
+  res.status(200).json({ status: 'released', correlationId });
 });
 
 // ─────────────────────────────────────────────

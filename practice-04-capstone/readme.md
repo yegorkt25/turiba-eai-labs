@@ -55,7 +55,7 @@ An e-commerce company operates four independent services that must collaborate t
 | `inventory-service/server.js` | **Partial scaffold** — complete the TODOs | Implement reserve + release + fail mode logic |
 | `order-service/server.js` | **Partial scaffold** — complete the TODOs | Implement order creation + retrieval |
 | `flows.json` | **3-tab skeleton** — wire the stubs | Build orchestration, error handling, and admin flows |
-| `docker-compose.yml` | **Provided** — extend if needed | Uncomment RabbitMQ section if using it (bonus) |
+| `docker-compose.yml` | **Provided** — extended | RabbitMQ is enabled; see **§12** for bonus wiring. |
 | `canonical-schema.json` | **Reference schema** | Use it for message transformation |
 | `test-data/` | **Sample orders** | Use for testing your integration |
 
@@ -79,6 +79,8 @@ Client → POST /orders (Order Service) → Order Service triggers Node-RED
 
 Both are architecturally valid. **Document your decision in your architecture diagram** and justify it in your README (1 paragraph).
 
+**This project uses Option B (implemented).** The public API lives on the **Order Service** (`POST /orders`, `GET /orders/:id`), so clients interact with a domain-level boundary. Node-RED remains a dedicated **integration and orchestration** layer, called synchronously with **Request-Reply** after the order is created and a single **correlation ID** is assigned. The Order Service can accept JSON (web, mobile) or B2B XML, normalize toward the canonical order shape, and delegate cross-cutting sequencing, routing, and compensation to Node-RED. That split keeps the order record and API versioning with the business service while the integration bus handles protocols, **Content-Based Routing**, and saga-style steps.
+
 ---
 
 ## 5. Service API Contracts
@@ -88,7 +90,7 @@ Both are architecturally valid. **Document your decision in your architecture di
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Health check → `{ status: "ok" }` |
-| `POST` | `/orders` | Create order → `{ orderId, correlationId, status: "received" }` |
+| `POST` | `/orders` | Create order, run saga via Node-RED → final JSON: `{ orderId, correlationId, status: "completed" \| "failed" \| "compensated" \| "error", trace: [...] }` (orchestration result) |
 | `GET` | `/orders/:id` | Retrieve order by ID |
 
 ### Payment Service (you build)
@@ -121,7 +123,7 @@ Your Node-RED flow must expose **at minimum**:
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Health check (already wired in Admin tab) |
-| Entry point | your choice | Main order intake endpoint |
+| `POST` | `/orchestrate` | **Internal (Option B).** Order Service → Node-RED with `{ orderId, correlationId, order }`. |
 
 **Required response format** from the orchestration endpoint:
 ```json
@@ -166,10 +168,11 @@ Add this table to your README and fill it in:
 
 | Pattern | Problem It Solves | Where Applied | Why Chosen |
 |---|---|---|---|
-| Content-Based Router | | | |
-| Correlation Identifier | | | |
-| Dead Letter Channel | | | |
-| *(4th pattern — your choice)* | | | |
+| **Content-Based Router** | Need to treat **standard** / **express** / **b2b** orders on different code paths. | **Node-RED** `switch` on `msg.orderType` (after `Init`), one branch per `orderType`. | Visible routing; avoids one mega-function. |
+| **Correlation Identifier** | Every hop must reference the same business operation for logging and trace. | `correlationId` is generated in **Order Service** once, passed in JSON and `X-Correlation-Id` on downstream HTTP calls. | Required trace end-to-end. |
+| **Dead Letter Channel** | Unrecoverable failures must not be lost silently. | **Node-RED** `function` nodes after 5xx on payment or inventory: HTTP **500** + `deadLetter: true` in JSON; `global` store `dlq:*` (last resort). | Instructor-facing failure path. |
+| **Message Translator** (4th) | Inbound **web** / **mobile** / **b2b** (XML) shapes differ; integration needs a **canonical** process model. | **Node-RED** three `function` nodes after CBR (`MessageTranslator: standard|express|b2b`); **Order Service** maps test payloads to a canonical `order` before `POST /orchestrate`. | Pairs with CBR. Option B also uses **Request-Reply** (synchronous `fetch` to `POST /orchestrate` with `http response`). |
+| *Bonus — messaging* | *Same event to multiple interested parties; payment authorization over the bus instead of only HTTP to the same service.* | *Fanout `eai.fanout.orderCompleted` → `eai.fanout.c1` & `c2` (Node-RED `amqp in` + warn logs). Payment authorize: queues `eai.payment.request` / `eai.payment.response` and **Payment** AMQP consumer (`§12`).* | *Satisfies RabbitMQ bonus; complements HTTP-based refund path.* |
 
 ---
 
@@ -192,6 +195,25 @@ You must implement and **demonstrate** at least 2 failure scenarios:
 - If inventory fails after payment succeeded → refund payment
 - If notification fails after inventory succeeded → release inventory, then refund payment
 - Compensation steps must appear in the response `trace` array
+
+### Failure analysis (implementation)
+
+**Scenario 1 — Payment rejected (`PAYMENT_FAIL_MODE=always`)**  
+**What fails:** Payment authorization rejects (HTTP 422 for `POST /payment/authorize`, or the same payload via AMQP queues in the live orchestration).  
+**Reaction:** Node-RED does not call inventory or notification. Response `status: "failed"`, trace contains only the payment step. **Final state:** order stored in Order Service with failed saga; `GET /inventory/.../admin/logs` has no *new* reserve for that order (verify after reset or a clean run).  
+**How to run:** `PAYMENT_FAIL_MODE=always docker compose up -d payment-service` (compose substitutes `${PAYMENT_FAIL_MODE:-never}`).
+
+**Scenario 2 — Inventory unavailable after payment (`INVENTORY_FAIL_MODE=always`, payment `never`)**  
+**What fails:** `POST /inventory/reserve` returns 422 after an authorized payment.  
+**Reaction:** **Compensation:** `POST /payment/refund` in reverse. Response `status: "compensated"`, trace includes `compensation:payment-refund` with `success`. **Final state:** payment `admin/logs` shows `authorize` then `refund` for the same `correlationId`.  
+**How to run:** `PAYMENT_FAIL_MODE=never INVENTORY_FAIL_MODE=always docker compose up -d payment-service inventory-service` then `POST /orders` as below.
+
+### AI usage disclosure
+The solution involved the use of AI-assisted tools for generating portions of code, documentation, and auxiliary materials. These tools were used to accelerate routine development tasks, provide initial drafts, and support idea exploration.
+
+All critical aspects of the project were directed and validated by a human developer. This includes system architecture design, business logic implementation, and final code review. Any AI-generated output was carefully evaluated, tested, and, where necessary, modified or rewritten to meet project requirements and quality standards.
+
+Human oversight ensured that the final solution aligns with best practices, maintains code reliability, and adheres to the intended functionality and design goals. AI served as a supportive tool rather than a decision-making authority, with full responsibility for the outcome remaining with the human developer.
 
 ---
 
@@ -235,44 +257,51 @@ Inside Node-RED, use Docker **service names** (not localhost) to call other serv
 - `http://inventory-service:3003`
 - `http://notification-service:3004`
 
-### Send test orders
+### Send test orders (Option B — public entry: Order Service)
+
+Use the host port from `.env` (default **3001** for orders).
 
 ```bash
-# Standard order (web store format)
-curl -s -X POST http://localhost:1880/order \
+# Standard order (web store JSON)
+curl -s -X POST http://localhost:3001/orders \
   -H "Content-Type: application/json" \
   -d @test-data/web-order.json
 
-# Express order (mobile app format — flat JSON, abbreviated fields)
-curl -s -X POST http://localhost:1880/order \
+# Express / mobile (abbreviated JSON)
+curl -s -X POST http://localhost:3001/orders \
   -H "Content-Type: application/json" \
   -d @test-data/mobile-order.json
 
-# B2B order (XML/EDI format)
-curl -s -X POST http://localhost:1880/order \
+# B2B (XML on the wire; Order Service maps to canonical)
+curl -s -X POST http://localhost:3001/orders \
   -H "Content-Type: text/xml" \
-  -d @test-data/b2b-order.xml
+  --data-binary @test-data/b2b-order.xml
 ```
+
+**Internal (optional, debugging):** Node-RED `POST /orchestrate` is for Order Service only (Docker network: `http://nodered:1880/orchestrate`). **Traces** for a completed order: `GET http://localhost:1880/trace/<orderId>` (same `orderId` as in the response body).
 
 ### Test compensation
 
 ```bash
-# Step 1: Make payment always fail
-# Edit docker-compose.yml: change PAYMENT_FAIL_MODE to 'always'
-docker compose up -d payment-service
+# 1) Payment always fails (host env passed into compose; see payment-service environment)
+PAYMENT_FAIL_MODE=always docker compose up -d payment-service
+curl -s -X POST http://localhost:3001/orders -H "Content-Type: application/json" -d @test-data/web-order.json
+# Expect: status "failed", trace only payment — no new inventory reserve for that order
+curl -s http://localhost:3003/admin/logs
 
-# Step 2: Send order
-curl -s -X POST http://localhost:1880/order \
-  -H "Content-Type: application/json" \
-  -d @test-data/web-order.json
+# 2) Inventory always fails: payment ok, then compensate refund
+PAYMENT_FAIL_MODE=never INVENTORY_FAIL_MODE=always docker compose up -d payment-service inventory-service
+curl -s -X POST http://localhost:3001/orders -H "Content-Type: application/json" -d @test-data/web-order.json
+curl -s http://localhost:3002/admin/logs
 
-# Step 3: Verify inventory was NOT called
-curl http://localhost:3003/admin/logs   # should be empty
-
-# Step 4: Restore
-# Edit docker-compose.yml: change PAYMENT_FAIL_MODE back to 'never'
-docker compose up -d payment-service
+# 3) Restore default failure modes
+PAYMENT_FAIL_MODE=never INVENTORY_FAIL_MODE=never docker compose up -d payment-service inventory-service
 ```
+
+### Architecture diagrams
+- [System context (Draw.io: `docs/diagrams/system-context.drawio` + notes)](docs/system-context.md)
+- [Integration architecture (Draw.io: `docs/diagrams/integration-architecture.drawio` + notes)](docs/integration-architecture.md)
+- [Orchestration / compensation (Draw.io: `docs/diagrams/orchestration-flow.drawio` + notes)](docs/orchestration-flow.md)
 
 ### Stop the system
 
@@ -290,21 +319,21 @@ docker compose down -v
 Your submitted GitHub repository must include all of the following:
 
 ### Code
-- [ ] `order-service/server.js` — fully implemented (TODOs replaced)
-- [ ] `payment-service/server.js` — fully implemented (TODOs replaced)
-- [ ] `inventory-service/server.js` — fully implemented (TODOs replaced)
-- [ ] `flows.json` — Node-RED flow with Orchestration, Error Handling, and Admin tabs wired
+- [x] `order-service/server.js` — fully implemented (TODOs replaced)
+- [x] `payment-service/server.js` — fully implemented (TODOs replaced)
+- [x] `inventory-service/server.js` — fully implemented (TODOs replaced)
+- [x] `flows.json` — Node-RED: **Orchestration** (CBR, translators, saga, DLC, compensation) + **Admin** (`/health`, `/trace/:orderId`). Dead-letter handling is implemented in the **Orchestration** tab (no separate error tab required for routing).
 
 ### Architecture Documentation (in `docs/` or inline in README as Mermaid)
-- [ ] **System Context Diagram** — all services, integration layer, client, labeled arrows
-- [ ] **Integration Architecture Diagram** — message flows, protocols, error paths, DLQ
-- [ ] **Orchestration Flow** — BPMN or sequence diagram with success + compensation paths
+- [x] **System Context Diagram** — [docs/system-context.md](docs/system-context.md)
+- [x] **Integration Architecture Diagram** — [docs/integration-architecture.md](docs/integration-architecture.md)
+- [x] **Orchestration Flow** — [docs/orchestration-flow.md](docs/orchestration-flow.md)
 
 ### README Sections
-- [ ] **Architecture decision** — which entry point you chose and why (1 paragraph)
-- [ ] **Pattern Mapping Table** — ≥4 patterns with name/problem/where/why
-- [ ] **Failure Analysis** — for ≥2 scenarios: what fails, system reaction, final state
-- [ ] **AI usage disclosure** — state whether AI tools were used; if so, describe what you understood and changed
+- [x] **Architecture decision** — which entry point you chose and why (1 paragraph)
+- [x] **Pattern Mapping Table** — ≥4 patterns with name/problem/where/why
+- [x] **Failure Analysis** — for ≥2 scenarios: what fails, system reaction, final state
+- [x] **AI usage disclosure** — state whether AI tools were used; if so, describe what you understood and changed
 
 ---
 
@@ -342,15 +371,25 @@ Your submission is evaluated by the instructor using [GRADING.md](GRADING.md) wi
 
 ## 12. RabbitMQ Bonus Integration
 
-To earn up to 15 bonus points, integrate RabbitMQ into your architecture:
+The course requirements (and how this project satisfies them):
 
-1. Uncomment the `rabbitmq` service in `docker-compose.yml`
-2. Use `amqp-out` / `amqp-in` nodes in Node-RED (pre-installed in `Dockerfile.nodered`)
-3. Have at least one service communicate via AMQP instead of HTTP
-4. Configure a Dead Letter Queue and demonstrate a message landing in it
-5. Use a fanout exchange so at least 2 consumers receive the same event
+1. **RabbitMQ in Compose** — The `rabbitmq` service (AMQP + management) is always started. A small config is mounted at `docker/rabbitmq/conf.d/20-allow-guest-remote.conf` so the default `guest` user can connect from other containers (Rabbit’s default is localhost-only for `guest`).
+2. **Node-RED `amqp in` / `amqp out` nodes** (palette `node-red-contrib-amqp` in `Dockerfile.nodered`):
+   - **Payment (authorize) step** — The orchestration uses **`amqp out` →** queue `eai.payment.request` and **`amqp in` ←** queue `eai.payment.response` (request/response over queues). The `Merge AMQP reply+SAGA` function re-attaches the original HTTP `req`/`res` to the message so the synchronous `/orchestrate` response can still be sent. Refunds in compensation remain **HTTP** to `payment-service` (out of scope for the bonus “authorize path”).
+   - **Order-completed event** — On success, **`amqp out` publishes to fanout** exchange `eai.fanout.orderCompleted` with a small JSON event (`type`, `orderId`, `correlationId`, `at`).
+3. **At least one business service over AMQP** — **Payment** consumes from `eai.payment.request` and returns JSON to `eai.payment.response` using the same business rules as `POST /payment/authorize` (and still allows **HTTP** for manual tests). Implementation: `payment-service/rabbitmq-bonus.js` (AMQP) + `server.js` (shared `runAuthorize` logic + HTTP).
+4. **Dead-letter queue (DLQ)** — On startup, `payment-service` declares `eai.dlx` (direct) → `eai.dlq`, and a sandbox queue `eai.dlq.sandbox` with `x-dead-letter-*` to route rejected messages. To show a message in the DLQ without a consumer on `eai.dlq` itself, the service offers **`POST /admin/bonus/seed-dlq`**, which enqueues, `get()`s, and `nack(requeue=false)`s one message so it is dead-lettered into `eai.dlq`. (Check **Queues** → `eai.dlq` in the UI, or `rabbitmqctl list_queues` inside the container.)
+5. **Fanout + two consumers** — The payment service binds queues `eai.fanout.c1` and `eai.fanout.c2` to `eai.fanout.orderCompleted`. In Node-RED, tab **RabbitMQ bonus (fanout)** has two `amqp in` nodes (one per queue) and simple **warn** loggers: each event from the bus is **mirrored to both** consumers, visible in the Node-RED log as `[fanout consumer c1] …` / `[fanout consumer c2] …`.
 
-RabbitMQ Management UI: `http://localhost:15672` (guest / guest)
+**Ports (host, overridable via `.env`):** AMQP `5672`, Management UI `15672`.
+
+**RabbitMQ Management UI:** [http://localhost:15672](http://localhost:15672) — user `guest`, password `guest`.
+
+**Quick manual checks**
+
+- **Happy path:** `POST` an order to the order service; confirm completion and see fanout **warn** lines in `docker compose logs nodered`.
+- **DLQ:** `curl -X POST http://localhost:3002/admin/bonus/seed-dlq` then open the **Queues** tab and inspect `eai.dlq` (a message with the demo JSON body).
+- **Rabbit** health: compose uses `rabbitmq-diagnostics -q ping`; payment and Node-RED start after the broker and payment HTTP health are ready.
 
 ---
 

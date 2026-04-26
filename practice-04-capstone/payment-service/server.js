@@ -1,10 +1,11 @@
 /**
  * Payment Service
  *
- * YOU MUST IMPLEMENT the TODO sections below.
- *
  * This service handles payment authorization and refunds.
  * It is called by your Node-RED orchestration flow (or Order Service).
+ *
+ * Option B + RabbitMQ bonus: the orchestration layer authorizes via **RabbitMQ** (request/response
+ * queues) instead of HTTP, while this file still exposes POST /payment/authorize for local testing.
  *
  * Behaviour is controlled by PAYMENT_FAIL_MODE environment variable:
  *   never  — always authorize successfully
@@ -17,6 +18,7 @@
 
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
+const { startRabbit, seedDeadLetter } = require('./rabbitmq-bonus');
 
 const app = express();
 app.use(express.json());
@@ -32,10 +34,7 @@ const PORT = process.env.PORT || 3002;
 //   'random' — 20% of payments fail
 const PAYMENT_FAIL_MODE = process.env.PAYMENT_FAIL_MODE || 'never';
 
-// ─────────────────────────────────────────────
 // In-memory call log (used by /admin/logs)
-// Tracks every authorize and refund call made to this service.
-// ─────────────────────────────────────────────
 const callLog = [];
 
 // ─────────────────────────────────────────────
@@ -46,63 +45,91 @@ app.get('/health', (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// POST /payment/authorize
-//
-// Validates a payment for an incoming order.
-//
-// Request body should include at minimum:
-//   { orderId, correlationId, amount, currency }
-//
-// The correlationId may also arrive in the X-Correlation-Id header.
-// Your implementation should check both places.
-//
-// Expected responses:
-//   Success: HTTP 200 { status: "authorized", transactionId: "<uuid>", correlationId }
-//   Failure: HTTP 422 { status: "rejected", reason: "Payment declined", correlationId }
-//
-// TODO: Implement this endpoint
-//   1. Extract correlationId from body or X-Correlation-Id header
-//   2. Log the call to callLog: { endpoint: '/payment/authorize', correlationId, orderId, timestamp }
-//   3. Decide success/failure based on PAYMENT_FAIL_MODE:
-//        'never'  → always succeed
-//        'always' → always reject (return HTTP 422)
-//        'random' → Math.random() < 0.2 → reject
-//   4. On success: return HTTP 200 with { status: 'authorized', transactionId: uuidv4(), correlationId }
-//   5. On failure: return HTTP 422 with { status: 'rejected', reason: 'Payment declined', correlationId }
+// Shared payment logic (HTTP + AMQP)
+// ─────────────────────────────────────────────
+function getCorrelationIdFromBody(body, req) {
+  return (body && body.correlationId) || (req && req.headers && req.headers['x-correlation-id']) || null;
+}
+
+function shouldRejectPayment() {
+  if (PAYMENT_FAIL_MODE === 'always') return true;
+  if (PAYMENT_FAIL_MODE === 'random' && Math.random() < 0.2) return true;
+  return false;
+}
+
+/**
+ * @param {object} input  { orderId, correlationId, amount?, currency? }
+ * @param {string} [via]  e.g. 'http' or 'amqp' — only for callLog labelling
+ * @returns {{ httpStatus: number, body: object }}
+ */
+function runAuthorize(input, via) {
+  const { orderId, correlationId, amount, currency } = input || {};
+  const suffix = via ? `:${via}` : '';
+  callLog.push({
+    endpoint: '/payment/authorize' + suffix,
+    correlationId,
+    orderId,
+    amount,
+    currency,
+    timestamp: new Date().toISOString(),
+  });
+
+  if (shouldRejectPayment()) {
+    return {
+      httpStatus: 422,
+      body: { status: 'rejected', reason: 'Payment declined', correlationId },
+    };
+  }
+  return {
+    httpStatus: 200,
+    body: {
+      status: 'authorized',
+      transactionId: uuidv4(),
+      correlationId,
+    },
+  };
+}
+
+// ─────────────────────────────────────────────
+// POST /payment/authorize (HTTP — optional testing / grading)
 // ─────────────────────────────────────────────
 app.post('/payment/authorize', (req, res) => {
-  // TODO: implement payment authorization
-  res.status(501).json({ error: 'Not implemented' });
+  const b = req.body || {};
+  const { httpStatus, body } = runAuthorize(
+    {
+      orderId: b.orderId || null,
+      correlationId: getCorrelationIdFromBody(b, req),
+      amount: b.amount,
+      currency: b.currency,
+    },
+    'http'
+  );
+  return res.status(httpStatus).json(body);
 });
 
 // ─────────────────────────────────────────────
 // POST /payment/refund
-//
-// Reverses a previously authorized payment.
-// Called by your compensation logic when a downstream step fails.
-//
-// Request body should include at minimum:
-//   { orderId, correlationId, transactionId }
-//
-// Expected response:
-//   HTTP 200 { status: "refunded", correlationId }
-//
-// TODO: Implement this endpoint
-//   1. Extract correlationId from body or X-Correlation-Id header
-//   2. Log the call to callLog: { endpoint: '/payment/refund', correlationId, orderId, timestamp }
-//   3. Return HTTP 200 { status: 'refunded', correlationId }
-//
-// Note: For this practice, refunds always succeed.
-// In a real system you would look up the transactionId and reverse it.
 // ─────────────────────────────────────────────
+function getCorrelationId(req) {
+  return (req.body && req.body.correlationId) || req.headers['x-correlation-id'] || null;
+}
+
 app.post('/payment/refund', (req, res) => {
-  // TODO: implement payment refund
-  res.status(501).json({ error: 'Not implemented' });
+  const correlationId = getCorrelationId(req);
+  const orderId = (req.body && req.body.orderId) || null;
+
+  callLog.push({
+    endpoint: '/payment/refund',
+    correlationId,
+    orderId,
+    timestamp: new Date().toISOString(),
+  });
+
+  res.status(200).json({ status: 'refunded', correlationId });
 });
 
 // ─────────────────────────────────────────────
-// Admin endpoints — used by instructor grading session
-// Do not remove. Do not document in your student README.
+// Admin
 // ─────────────────────────────────────────────
 
 app.get('/admin/logs', (req, res) => {
@@ -113,6 +140,36 @@ app.post('/admin/reset', (req, res) => {
   callLog.length = 0;
   console.log('[payment-service] Call log cleared');
   res.json({ status: 'ok', message: 'Call log cleared' });
+});
+
+/** Not used by the formal grading run; for RabbitMQ bonus: demonstrates a message in eai.dlq */
+app.post('/admin/bonus/seed-dlq', (req, res) => {
+  seedDeadLetter()
+    .then((o) => res.json(o))
+    .catch((e) => {
+      console.error(e);
+      res.status(500).json({ status: 'error', message: e.message });
+    });
+});
+
+// ─────────────────────────────────────────────
+// Start — AMQP consumer (bonus)
+// ─────────────────────────────────────────────
+startRabbit({
+  authorizeFromBody: (body) => {
+    if (!body || typeof body !== 'object') {
+      return { httpStatus: 500, body: { status: 'error', reason: 'Invalid request' } };
+    }
+    return runAuthorize(
+      {
+        orderId: body.orderId,
+        correlationId: body.correlationId,
+        amount: body.amount,
+        currency: body.currency,
+      },
+      'amqp'
+    );
+  },
 });
 
 app.listen(PORT, () => {

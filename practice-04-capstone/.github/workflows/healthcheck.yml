@@ -22,7 +22,7 @@ jobs:
         run: docker compose up -d --build
 
       - name: Wait for services to initialize
-        run: sleep 25
+        run: sleep 35
 
       - name: Check Node-RED health
         run: |
